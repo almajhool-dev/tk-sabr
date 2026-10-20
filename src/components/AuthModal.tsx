@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Mail, User, X, Check, ArrowRight, ShieldCheck } from 'lucide-react';
 import type { UserAccount } from '../types/index.ts';
-import { firebaseConfigured, loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword } from '../utils/firebaseAuth.ts';
+import { firebaseConfigured, loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword, sendEmailLoginLink, googleProviderStatus } from '../utils/firebaseAuth.ts';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -18,15 +18,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
   const [isLoading, setIsLoading] = useState(false);
 
   const [authError, setAuthError] = useState<string|null>(null);
+  const [googleStatus, setGoogleStatus] = useState<'enabled' | 'disabled' | 'unknown'>('unknown');
+  React.useEffect(() => {
+    if (!isOpen) return;
+    let alive = true;
+    void googleProviderStatus().then(status => { if (alive) setGoogleStatus(status); });
+    return () => { alive = false; };
+  }, [isOpen]);
   if (!isOpen) return null;
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true); setAuthError(null);
     try {
       await loginWithGoogle(rememberMe);
-      // Supabase handles redirect; login is confirmed only by the returned session.
+      // The browser must return from Google before its actual session is established.
     } catch (error: any) {
       setAuthError(error?.message || 'تعذر تسجيل الدخول باستخدام Google.');
+    } finally { setIsLoading(false); }
+  };
+
+  const handleEmailLink = async () => {
+    setIsLoading(true); setAuthError(null);
+    try {
+      await sendEmailLoginLink(email);
+      setAuthError('تم إرسال رابط دخول إلى بريدك إذا كان الإرسال متاحاً. افتح الرسالة واضغط الرابط.');
+    } catch (error: any) {
+      setAuthError(error?.message || 'تعذر إرسال رابط الدخول.');
     } finally { setIsLoading(false); }
   };
 
@@ -72,7 +89,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
         </div>
 
         {!firebaseConfigured && <p className="text-amber-300 text-xs mb-4 p-3 border border-amber-700/50 rounded-xl">تسجيل الدخول يحتاج تهيئة خدمة الحسابات.</p>}
-        {authError && <p role="alert" className="text-red-300 text-xs mb-3">{authError}</p>}
+        {googleStatus === 'disabled' && firebaseConfigured && <p role="status" className="text-amber-300 text-xs mb-3 rounded-xl border border-amber-500/20 p-3">تسجيل Google يحتاج تفعيل من إعدادات المنصة. تگدر تسجّل بالبريد الإلكتروني حالياً.</p>}
+        {authError && <p role="alert" className="text-amber-200 text-xs mb-3 rounded-xl bg-amber-500/10 p-3">{authError}</p>}
 
         {/* Google Sign-in button */}
         <button
@@ -181,6 +199,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
             )}
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={handleEmailLink}
+          disabled={isLoading || !firebaseConfigured || !email.trim()}
+          className="w-full mt-3 rounded-xl border border-cyan-500/30 px-3 py-3 text-xs font-semibold text-cyan-300 disabled:opacity-40"
+        >
+          استلم رابط دخول على بريدك (بدون كلمة مرور)
+        </button>
 
         {/* Switch mode */}
         <div className="mt-4 pt-4 border-t border-gray-800 text-center text-xs text-gray-400">
