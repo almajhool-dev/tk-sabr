@@ -1,0 +1,46 @@
+name: Private Cyber Minute Motion Preview
+on:
+  push:
+    branches: [private-cyber-minute-preview-oct20]
+    paths:
+      - private_cyber_preview/**
+      - .github/workflows/private-cyber-preview.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compose-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Arabic fonts and editing prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core python3-pil
+      - name: Fetch exact original Iraqi presenter clip
+        shell: bash
+        run: |
+          mkdir -p production
+          curl --fail --location --retry 4 --retry-delay 5 --connect-timeout 20 --max-time 240 --silent --show-error \
+            --user-agent 'Mozilla/5.0' \
+            'https://resource2.heygen.ai/video_repurpose/baa1b624385b4a1089597f99d665ad81/highlights/06093ac8f1304ecab69e49761e831a03/720x1280.mp4' \
+            --output production/original_real_voice.mp4
+          test "$(stat -c %s production/original_real_voice.mp4)" -gt 1000000
+          ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1 production/original_real_voice.mp4 | grep -q 'codec_name='
+          ffprobe -v error -show_entries format=duration -of default=nw=1 production/original_real_voice.mp4
+      - name: Render full episode with in-frame cyber motion graphics
+        run: |
+          python3 private_cyber_preview/render.py production/original_real_voice.mp4 production/CyberMinute_EP01_Motion_FINAL_Private.mp4
+          ffmpeg -v error -i production/CyberMinute_EP01_Motion_FINAL_Private.mp4 -f null -
+      - name: Verify final MP4 contains preserved original audio
+        run: |
+          ffprobe -v error -show_entries stream=codec_type,codec_name,width,height -show_entries format=duration,size -of default=nw=1 production/CyberMinute_EP01_Motion_FINAL_Private.mp4
+          test "$(stat -c %s production/CyberMinute_EP01_Motion_FINAL_Private.mp4)" -gt 5000000
+      - name: Store private review copy only - NEVER publish to TikTok
+        uses: actions/upload-artifact@v4
+        with:
+          name: CyberMinute-EP01-Motion-Private
+          path: production/CyberMinute_EP01_Motion_FINAL_Private.mp4
+          if-no-files-found: error
+          retention-days: 7
