@@ -1,13 +1,17 @@
-name: Build TK_SABR
-
+name: Build TK_SABR web assets
 on:
   workflow_dispatch:
   push:
     branches: [main]
-
+    paths:
+      - 'src/**'
+      - 'index.html'
+      - 'package.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - '.github/workflows/build.yml'
 permissions:
-  contents: read
-
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,13 +20,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      - name: Build website
-        run: npm run build
-      - name: Save build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tksabr-frontend-dist
-          path: dist/
-          if-no-files-found: error
+      - name: Build production frontend
+        id: build
+        continue-on-error: true
+        run: |
+          npm install --include=dev --no-audit --no-fund > npm-install.log 2>&1
+          code=$?
+          if [ "$code" -eq 0 ]; then npm run build > vite-build.log 2>&1; code=$?; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" -ne 0 ]; then
+            echo 'FAILED: npm install / vite build' > build-result.txt
+            tail -n 45 npm-install.log >> build-result.txt
+            [ ! -f vite-build.log ] || tail -n 45 vite-build.log >> build-result.txt
+          else
+            echo 'SUCCESS: Vite production dist generated' > build-result.txt
+          fi
+      - name: Commit generated files or failure report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-result.txt
+          if [ "${{ steps.build.outputs.code }}" = "0" ]; then git add -f dist; fi
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: update compiled frontend and build report"
+            git push
+          fi
+      - name: Fail workflow when build fails
+        if: steps.build.outputs.code != '0'
+        run: exit 1
