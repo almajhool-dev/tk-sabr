@@ -91,6 +91,20 @@ Deno.serve(async(req:Request)=>{
  try{parsed=await req.json();}catch{return json({success:false,message:'بيانات الطلب غير صالحة'},400,origin)}
  const username=cleanName(parsed?.username);
  if(!/^[a-zA-Z0-9_][a-zA-Z0-9_.]{0,22}[a-zA-Z0-9_]$/.test(username)) return json({success:false,message:'اسم المستخدم غير صالح'},400,origin);
+ // Database-backed global maintenance switch, respected by all scanner requests.
+ try {
+   const dbUrl = Deno.env.get('SUPABASE_URL') || '';
+   const anon = Deno.env.get('SUPABASE_ANON_KEY') || '';
+   if(dbUrl && anon) {
+     const statusResponse = await fetch(dbUrl + '/rest/v1/tksabr_site_settings?id=eq.1&select=enabled', {
+       headers: {'apikey': anon, 'Authorization': 'Bearer ' + anon},signal:AbortSignal.timeout(3000)
+     });
+     if(!statusResponse.ok) return json({success:false,message:'تعذر التحقق من حالة الموقع؛ حاول لاحقاً'},503,origin);
+     const statusRows = await statusResponse.json();
+     if(Array.isArray(statusRows) && statusRows[0]?.enabled === false)
+       return json({success:false,message:'الموقع في وضع الصيانة مؤقتاً بقرار الإدارة'},503,origin);
+   }
+ } catch { return json({success:false,message:'تعذر التحقق من حالة خدمة الفحص'},503,origin); }
  const cached=cache.get(username.toLowerCase());
  if(cached&&cached.expires>now)return json(cached.value,200,origin);
  try {
