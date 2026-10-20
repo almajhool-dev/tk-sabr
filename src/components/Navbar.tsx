@@ -42,6 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'pricing', label: 'الأسعار والاشتراكات', icon: CreditCard },
     { id: 'dashboard', label: 'لوحتي', icon: User },
     { id: 'info', label: 'عن المنصة', icon: Info },
+    ...(currentUser?.role === 'admin' ? [{ id: 'admin', label: 'إدارة الموقع', icon: Sliders }] : []),
   ];
 
   return (
@@ -121,7 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="absolute left-0 mt-2 w-56 rounded-xl bg-gray-900 border border-cyan-500/30 shadow-2xl py-2 z-50">
                     <div className="px-4 py-2 border-b border-gray-800">
                       <p className="text-sm font-bold text-white">{currentUser.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{currentUser.email}</p>
+                      <p className="text-xs text-gray-400 truncate">حساب مسجّل وآمن</p>
                     </div>
                     <button
                       onClick={() => {
