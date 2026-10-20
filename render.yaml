@@ -1,0 +1,27 @@
+# Render Blueprint for the full TK_SABR website.
+# Public URL can be accessed by anyone; repository stays private.
+# The website's backend requires a Node runtime (GitHub Pages alone is insufficient).
+services:
+  - type: web
+    name: tk-sabr
+    runtime: node
+    plan: free
+    region: frankfurt
+    repo: https://github.com/almajhool-dev/tk-sabr
+    branch: main
+    buildCommand: npm install --no-audit --no-fund && npm run build
+    startCommand: npm run start
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: VITE_FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_APP_ID
+        sync: false
