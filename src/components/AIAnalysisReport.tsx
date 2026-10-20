@@ -50,11 +50,12 @@ export const AIAnalysisReport: React.FC<AIAnalysisReportProps> = ({
     setIsSendingChat(true);
 
     try {
-      const res = await fetch('/api/gemini/chat', {
+      const res = await fetch((globalThis as any).__TK_SABR_CHAT_API__ || '/api/gemini/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: userText,
+          action: 'chat',
           profileContext: {
             username: profile.username,
             followers: profile.followersCount,
@@ -109,7 +110,7 @@ export const AIAnalysisReport: React.FC<AIAnalysisReportProps> = ({
                 تقرير TK_SABR AI الذكي
               </h3>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-mono">
-                Gemini 3.8 Flash
+                تحليل مبني على البيانات
               </span>
             </div>
             <p className="text-xs text-gray-400">
@@ -140,7 +141,7 @@ export const AIAnalysisReport: React.FC<AIAnalysisReportProps> = ({
             </div>
           </div>
           <div className="space-y-1">
-            <h4 className="text-lg font-bold text-white">جاري صياغة التقرير عبر TK_SABR AI...</h4>
+            <h4 className="text-lg font-bold text-white">جاري إعداد تقرير قائم على مؤشرات الحساب...</h4>
             <p className="text-xs text-gray-400 max-w-sm mx-auto">
               يتم الآن فحص توازن التفاعل، صياغة أفكار المحتوى، وتوليد خطة الـ 30 يوماً باللغة العربية.
             </p>
