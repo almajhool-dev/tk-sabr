@@ -23,8 +23,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
   const handleGoogleSignIn = async () => {
     setIsLoading(true); setAuthError(null);
     try {
-      const user = await loginWithGoogle(rememberMe);
-      onLoginSuccess(user); onClose();
+      await loginWithGoogle(rememberMe);
+      // Supabase handles redirect; login is confirmed only by the returned session.
     } catch (error: any) {
       setAuthError(error?.message || 'تعذر تسجيل الدخول باستخدام Google.');
     } finally { setIsLoading(false); }
