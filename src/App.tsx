@@ -71,7 +71,7 @@ export default function App() {
     }, 1400);
 
     try {
-      const res = await fetch('/api/tiktok/scan', {
+      const res = await fetch(((window as any).__TK_SABR_API__ || '/api/tiktok/scan'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username }),
