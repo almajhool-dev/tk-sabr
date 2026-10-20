@@ -64,7 +64,7 @@ def drawing(t):
  # branding HUD
  d.rounded_rectangle((20,24,146,49),radius=7,fill=(1,39,47,205),outline=(51,255,225,115),width=1)
  d.text((136,35),"دقيقة أمان",font=f14,anchor="rm",fill=(188,255,247,255),direction="rtl")
- d.text((W-20,32),"EP 01  /  IRAQ",font=f12,anchor="ra",fill=(139,231,232,210))
+ d.text((W-20,32),"الحلقة ١  /  العراق",font=f12,anchor="ra",direction="rtl",fill=(139,231,232,210))
  # lower thirds animated cards, with gentle kinetic slide-in
  idx=0
  for j,s in enumerate(scenes):
@@ -80,7 +80,7 @@ def drawing(t):
  # animated progress and speaker credit
  d.rounded_rectangle((23,571,W-23,574),radius=1,fill=(42,97,102,170))
  d.rounded_rectangle((23,571,23+int((W-46)*min(1,t/duration)),574),radius=1,fill=(64,246,221,255))
- d.text((W-22,594),"شرح: Mohammed Slice",font=f12,anchor="ra",fill=(230,254,251,225))
+ d.text((W-22,594),"شرح: محمد سلايس",font=f12,anchor="ra",direction="rtl",fill=(230,254,251,225))
  d.text((W-22,614),"إعداد ومونتاج: المبرمج المجهول",font=f12,anchor="ra",direction="rtl",fill=(160,223,225,215))
  # full cinematic intro - voice continues unmodified in the original video
  if t<3.4:
