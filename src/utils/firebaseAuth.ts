@@ -41,14 +41,29 @@ export function watchAuth(callback: (user: UserAccount | null) => void) {
   return () => { active = false; subscription.unsubscribe(); };
 }
 function requireAuth() { if (!auth) throw new Error('خدمة الحسابات غير جاهزة.'); return auth; }
-export async function loginWithGoogle(_remember: boolean) {
+export async function loginWithGoogle(_remember: boolean): Promise<void> {
   const a = requireAuth();
-  const { data, error } = await a.auth.signInWithOAuth({
+  // Surface unavailable provider on the website rather than redirect to raw JSON.
+  try {
+    const response = await fetch(url.replace(/\\/$/, '') + '/auth/v1/settings', {
+      headers: { apikey: key },
+      cache: 'no-store',
+    });
+    if (response.ok) {
+      const settings = await response.json();
+      if (settings?.external?.google === false) {
+        throw new Error('تسجيل Google غير مُفعّل في Supabase حالياً. استخدم تسجيل البريد الإلكتروني مؤقتاً إلى حين تفعيل Google في لوحة المشروع.');
+      }
+    }
+  } catch (error: any) {
+    if (error?.message?.includes('غير مُفعّل')) throw error;
+    // On a transient network error, proceed and let Supabase validate OAuth.
+  }
+  const { error } = await a.auth.signInWithOAuth({
     provider: 'google', options: { redirectTo: location.origin + location.pathname },
   });
-  if (error) throw new Error('تعذر تسجيل Google. يلزم تفعيل Google OAuth وإضافة رابط الموقع إلى قائمة إعادة التوجيه.');
-  // OAuth redirects away; never fake a completed session.
-  throw new Error('جاري الانتقال إلى Google...');
+  if (error) throw new Error('تعذر تسجيل Google. يرجى مراجعة تفعيل مزود Google وعناوين إعادة التوجيه في Supabase.');
+  // Real auth state is restored after OAuth returns.
 }
 export async function loginWithEmail(email: string, password: string, _remember: boolean) {
   const { data, error } = await requireAuth().auth.signInWithPassword({ email: email.trim(), password });
