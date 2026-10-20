@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { watchAuth, logout } from './utils/firebaseAuth.ts';
+import { watchAuth, logout, supabase } from './utils/firebaseAuth.ts';
 import { CyberBackground } from './components/CyberBackground.tsx';
 import { Navbar } from './components/Navbar.tsx';
 import { TikTokScanner } from './components/TikTokScanner.tsx';
@@ -45,6 +45,19 @@ export default function App() {
   // User state
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   useEffect(() => watchAuth(setCurrentUser), []);
+  const [siteEnabled, setSiteEnabled] = useState(true);
+  const [statusReady, setStatusReady] = useState(false);
+  useEffect(() => {
+    let live = true;
+    const load = async () => {
+      if (!supabase) return;
+      const { data } = await supabase.from('tksabr_site_settings').select('enabled').eq('id',1).maybeSingle();
+      if (live) { if (data) setSiteEnabled(Boolean(data.enabled)); setStatusReady(true); }
+    };
+    void load();
+    const interval = setInterval(() => { void load(); }, 30000);
+    return () => { live = false; clearInterval(interval); };
+  }, []);
 
 
   // Execute account scan
@@ -71,7 +84,7 @@ export default function App() {
     }, 1400);
 
     try {
-      const res = await fetch(((window as any).__TK_SABR_API__ || '/api/tiktok/scan'), {
+      const res = await fetch((globalThis as any).__TK_SABR_API__ || '/api/tiktok/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username }),
@@ -121,30 +134,23 @@ export default function App() {
     }
   };
 
-  // Generate AI Report via Gemini
+  // Generate evidence-based report, with optional model processing on the server.
   const handleGenerateAIReport = async () => {
     if (!currentProfile) return;
     setIsAiLoading(true);
-
     try {
-      const res = await fetch('/api/gemini/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profile: currentProfile,
-          securityScore,
-        }),
+      const res = await fetch((globalThis as any).__TK_SABR_REPORT_API__ || '/api/gemini/analyze', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: currentProfile, securityScore, action:'report' }),
       });
-
       const data = await res.json();
-      if (data.success && data.report) {
-        setAiReport(data.report);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAiLoading(false);
-    }
+      if (!res.ok || !data.success || !data.report) throw new Error(data.message || 'فشل إنشاء التقرير');
+      setAiReport(data.report);
+      setErrorMessage(null);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'تعذر إنشاء التقرير حالياً.');
+      window.alert(err?.message || 'تعذر إنشاء التقرير حالياً.');
+    } finally { setIsAiLoading(false); }
   };
 
   // Add account to monitoring
@@ -178,6 +184,8 @@ export default function App() {
         onOpenPricing={() => setIsPricingOpen(true)}
       />
 
+      {/* Backend-backed maintenance mode */}
+      {!siteEnabled && currentUser?.role !== 'admin' ? <main className="relative z-10 flex-1 flex items-center justify-center p-6"><div className="max-w-xl text-center p-10 rounded-3xl border border-amber-500/40 bg-gray-950/90"><h1 className="text-3xl font-black text-amber-300 mb-4">TK_SABR في وضع الصيانة</h1><p className="text-gray-300">الموقع متوقف مؤقتاً للزوار بقرار الإدارة. ارجع لاحقاً.</p></div></main> : <>
       {/* Main View Router */}
       <main className="flex-1 relative z-10">
         {activeTab === 'scanner' && (
@@ -268,13 +276,14 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'admin' && <div className="max-w-xl mx-auto my-24 p-8 rounded-2xl border border-amber-500/30 bg-gray-950 text-center text-amber-200">لوحة الإدارة المالية متوقفة مؤقتاً حتى تجهيز مصادقة إدارية موثقة وربط المدفوعات الحقيقية.</div>}
+        {activeTab === 'admin' && currentUser?.role === 'admin' && <AdminDashboard user={currentUser}/>}
 
         {activeTab === 'info' && <StaticPages initialSubTab="about" />}
         {activeTab === 'privacy' && <StaticPages initialSubTab="privacy" />}
         {activeTab === 'terms' && <StaticPages initialSubTab="terms" />}
       </main>
 
+      </>}
       {/* Auth Modal */}
       <AuthModal
         isOpen={isAuthOpen}
