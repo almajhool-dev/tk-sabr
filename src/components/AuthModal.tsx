@@ -17,9 +17,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
-  if (!isOpen) return null;
-
   const [authError, setAuthError] = useState<string|null>(null);
+  if (!isOpen) return null;
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true); setAuthError(null);
@@ -27,7 +26,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
       const user = await loginWithGoogle(rememberMe);
       onLoginSuccess(user); onClose();
     } catch (error: any) {
-      setAuthError(error?.code === 'auth/popup-blocked' ? 'المتصفح منع نافذة Google. اسمح بالنوافذ المنبثقة وحاول مجدداً.' : (error?.message || 'تعذر تسجيل الدخول باستخدام Google.'));
+      setAuthError(error?.message || 'تعذر تسجيل الدخول باستخدام Google.');
     } finally { setIsLoading(false); }
   };
 
@@ -72,7 +71,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
           </p>
         </div>
 
-        {!firebaseConfigured && <p className="text-amber-300 text-xs mb-4 p-3 border border-amber-700/50 rounded-xl">تسجيل الدخول متوقف حتى إعداد Firebase Authentication في متغيرات البيئة وتفعيل Google والبريد.</p>}
+        {!firebaseConfigured && <p className="text-amber-300 text-xs mb-4 p-3 border border-amber-700/50 rounded-xl">تسجيل الدخول يحتاج تهيئة خدمة الحسابات.</p>}
         {authError && <p role="alert" className="text-red-300 text-xs mb-3">{authError}</p>}
 
         {/* Google Sign-in button */}
