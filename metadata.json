@@ -1,0 +1,8 @@
+{
+  "name": "Remix TK_SABR - محلل حسابات تيك توك الذكي والسيبراني",
+  "description": "منصة TK_SABR العالمية والمتخصصة بفحص وتحليل حسابات تيك توك وتحديد نسبة الأمان، المشاكل والحلول، والتحليل الذكي عبر Gemini AI وبوابة دفع مصرفية آمنة.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

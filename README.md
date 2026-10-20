@@ -1,23 +1,47 @@
-# TK_SABR | محلل حسابات تيك توك
+# TK_SABR — النسخة المنقولة الآمنة (مرحلة التجهيز)
 
-This is the private source repository for the TK_SABR TikTok analysis website.
+هذه نسخة من مشروع TK_SABR الأصلي بصيغة Vite + React + TypeScript + Express.
+تم الاحتفاظ بتصميم الموقع وشاشة البحث والمقارنة والتقارير، مع إزالة طرق تسجيل الدخول والمدفوعات التجريبية الخطيرة.
 
-## Current status
-The source package `TK_SABR_deploy.zip` was prepared in ChatGPT from the user's AI Studio export, but **has not been added to this repository yet**.
+## ما هو جاهز وما هو غير جاهز؟
 
-This repository's GitHub Actions workflow can validate and build the source archive when it is added.
+- **واجهة TK_SABR**: ملفاتها موجودة وقابلة للاستخدام بعد تثبيت الاعتماديات.
+- **فحص TikTok**: يعتمد على استخراج البيانات العامة من صفحات TikTok، وقد يفشل بسبب قيود TikTok أو تغيّر بنية الصفحة. لا يتوافر مصدر رسمي موثوق لإحصائيات كل مستخدم باليوزر فقط داخل هذا ZIP. لن يعرض نتيجة ناجحة دون استخراج الإحصائيات.
+- **تسجيل Google والبريد**: يوجد تكامل Firebase Auth فعلي، لكنه **لا يعمل** قبل إدخال إعدادات Firebase الخاصة بك وإضافة دومين النشر إلى قائمة النطاقات المعتمدة داخل Firebase.
+- **Gemini AI**: يحتاج مفتاح API يضاف إلى متغيرات السيرفر (ليس الواجهة). إذا فشل الاتصال يعرض خطأ حقيقياً لا تقريراً مولداً وهمياً.
+- **الاشتراكات والمدفوعات**: **معطّلة** حتى ربط بوابة دفع رسمية والتحقق من Webhooks؛ لا يوجد خصم حقيقي ولا أرباح حقيقية.
+- **المدير والتسويات المصرفية**: معطّلة حتى تنفيذ مصادقة إدارية من السيرفر وربط مزود الدفع.
+- **المراقبة التلقائية**: معطلة حتى توفير قاعدة بيانات لكل مستخدم ومهام مجدولة.
+- **البيانات التاريخية وسجل المستخدم**: قاعدة بيانات دائمة غير موجودة بعد. أرقام الفحوصات المعروضة في حساب المستخدم ليست مصدراً معتمداً للقيود حتى يتم تفعيل التخزين الخلفي.
 
-**Do not claim this website is publicly deployed until a hosting deployment actually succeeds.**
+## التشغيل
 
-## Architecture
-- React + TypeScript + Vite frontend
-- Express + TypeScript backend (needed for `/api/tiktok/scan` and Gemini)
-- Firebase Authentication (must be configured for the final public domain)
-- No real payments: checkout endpoints are intentionally disabled until a real merchant integration exists.
+1. ثبّت Node.js 22.12 أو أحدث (بحسب متطلبات Vite 8) وادخل مجلد المشروع.
+2. نفذ `npm install`.
+3. انسخ `.env.example` إلى `.env.local` وأضف قيم Firebase العامة الأربع لتسجيل Google والبريد.
+4. فعّل **Authentication -> Sign-in method -> Google / Email/Password** في لوحة Firebase.
+5. أضف نطاق الموقع النهائي إلى **Authentication -> Settings -> Authorized domains**.
+6. للحصول على تقارير Gemini أضف `GEMINI_API_KEY` كمتغير بيئة سري على السيرفر (يمكن استعمال `.env.local` محلياً فقط). لا تضفه في GitHub.
+7. شغل `npm run dev` ثم افحص الموقع محلياً؛ وللبناء `npm run build`.
 
-## Hosting
-GitHub Pages only hosts static files. The scanning API needs a separate Node.js server. GitHub Free doesn't support Pages for private repositories. Keep the source private and host the entire application on a Node-enabled platform if public access with private code is desired.
+## النقل إلى حساب Google AI Studio المجاني
 
-## Security
-Never commit live `.env` files, tokens, merchant secrets, or Google AI Studio project credentials. Configure production secrets in the hosting platform.
+1. أنشئ مستودع GitHub جديد `tk-sabr` **Private** من [github.com/new](https://github.com/new).
+2. ارفع ملفات هذا المجلد إلى المستودع، بدون `.env.local` أو أي مفاتيح API.
+3. افتح Google AI Studio من الحساب المجاني -> Build -> زر `+` بجوار الطلب -> **Import from GitHub** -> اختر المستودع.
+4. اضبط أسرار البيئة والتكاملات، واستعرض نسخة التطبيق في المعاينة.
+5. اختبر الوظائف فعلياً قبل النشر؛ من زر **Publish** جرّب **Starter Tier** إذا كان حسابك مؤهلاً.
+6. احفظ رابط النشر الفعلي بعد أن تنجح عملية نشر Google. لا يمكن استنتاجه من اسم المشروع.
 
+**مهم:** Starter Tier ليس متاحاً لكل حساب، وربط Firebase وقاعدة بيانات خارجية ليس تلقائياً بمجرد رفع ملفات ZIP.
+
+مراجع Google:
+- https://ai.google.dev/gemini-api/docs/aistudio-build-mode
+- https://ai.google.dev/gemini-api/docs/aistudio-deploying
+
+## مراجعة الأمان
+
+- لا تنشر نسخة المشروع الأصلي كما هي؛ النسخة الأصلية كانت تخترع نجاح عمليات الدفع وتحوي PIN إدارياً ثابتاً ومعاملات تسوية وهمية.
+- هذه النسخة مرحلة إصلاح: منعنا هذه العمليات عمداً لحماية المستخدمين. تفعيلها لاحقاً يتطلب تكاملاً إنتاجياً مستقلاً.
+- لا يتم إرسال بطاقات مصرفية أو بيانات حساسة عبر هذا الموقع.
+- اختبار الصياغة البرمجية مرّ للملفات الـ 26، والاختبارات الذاتية الستة نجحت، **لكن البناء الكامل لم يُتحقق منه** بسبب تعذر تنزيل الاعتماديات في بيئة المراجعة.
