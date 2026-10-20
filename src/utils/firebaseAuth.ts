@@ -41,30 +41,56 @@ export function watchAuth(callback: (user: UserAccount | null) => void) {
   return () => { active = false; subscription.unsubscribe(); };
 }
 function requireAuth() { if (!auth) throw new Error('خدمة الحسابات غير جاهزة.'); return auth; }
+export async function googleProviderStatus(): Promise<'enabled' | 'disabled' | 'unknown'> {
+  if (!firebaseConfigured) return 'disabled';
+  try {
+    const response = await fetch(`${url}/auth/v1/settings`, {
+      method: 'GET',
+      headers: { 'apikey': key },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!response.ok) return 'unknown';
+    const config = await response.json();
+    if (config?.external?.google === true) return 'enabled';
+    if (config?.external?.google === false) return 'disabled';
+    return 'unknown';
+  } catch {
+    // Network failures cannot prove a provider is disabled.
+    return 'unknown';
+  }
+}
+
 export async function loginWithGoogle(_remember: boolean): Promise<void> {
   const a = requireAuth();
-  // Surface unavailable provider on the website rather than redirect to raw JSON.
-  try {
-    const response = await fetch(url.replace(/\\/$/, '') + '/auth/v1/settings', {
-      headers: { apikey: key },
-      cache: 'no-store',
-    });
-    if (response.ok) {
-      const settings = await response.json();
-      if (settings?.external?.google === false) {
-        throw new Error('تسجيل Google غير مُفعّل في Supabase حالياً. استخدم تسجيل البريد الإلكتروني مؤقتاً إلى حين تفعيل Google في لوحة المشروع.');
-      }
-    }
-  } catch (error: any) {
-    if (error?.message?.includes('غير مُفعّل')) throw error;
-    // On a transient network error, proceed and let Supabase validate OAuth.
+  const enabled = await googleProviderStatus();
+  if (enabled === 'disabled') {
+    throw new Error('تسجيل Google غير مفعّل حالياً من إعدادات الموقع. يحتاج مسؤول TK_SABR إلى تفعيل Google في Supabase وربط OAuth. تگدر تستخدم تسجيل البريد مؤقتاً.');
   }
-  const { error } = await a.auth.signInWithOAuth({
-    provider: 'google', options: { redirectTo: location.origin + location.pathname },
+  const { data, error } = await a.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: location.origin + location.pathname,
+      skipBrowserRedirect: true,
+    },
   });
-  if (error) throw new Error('تعذر تسجيل Google. يرجى مراجعة تفعيل مزود Google وعناوين إعادة التوجيه في Supabase.');
-  // Real auth state is restored after OAuth returns.
+  if (error) throw new Error(`تعذر الاتصال بـ Google: ${error.message}`);
+  if (!data?.url) throw new Error('لم يتم الحصول على رابط دخول Google. حاول مرة ثانية.');
+  // Start the authorization redirect in this same tab; do not pretend the user is signed in yet.
+  window.location.assign(data.url);
 }
+
+export async function sendEmailLoginLink(email: string): Promise<void> {
+  const normalized = email.trim();
+  if (!normalized || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) {
+    throw new Error('اكتب بريدك الإلكتروني الصحيح حتى نرسل رابط الدخول.');
+  }
+  const { error } = await requireAuth().auth.signInWithOtp({
+    email: normalized,
+    options: { emailRedirectTo: location.origin + location.pathname },
+  });
+  if (error) throw new Error(`تعذر إرسال رابط الدخول: ${error.message}`);
+}
+
 export async function loginWithEmail(email: string, password: string, _remember: boolean) {
   const { data, error } = await requireAuth().auth.signInWithPassword({ email: email.trim(), password });
   if (error || !data.user) throw new Error(error?.message || 'تعذر تسجيل الدخول بالبريد.');
