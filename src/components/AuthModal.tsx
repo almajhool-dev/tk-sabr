@@ -166,24 +166,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
             />
           </div>
 
-          <div className="flex items-center justify-between text-xs text-gray-400 pt-1">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-3.5 h-3.5 rounded bg-gray-900 border-gray-700 text-cyan-400"
-              />
-              <span>تذكرني على هذا الجهاز</span>
-            </label>
-            <button
-              type="button"
-              onClick={handleResetPassword}
-              className="text-cyan-400 hover:underline"
-            >
-              نسيت كلمة المرور؟
-            </button>
-          </div>
 
           <button
             type="submit"

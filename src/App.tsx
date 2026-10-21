@@ -1,373 +1,475 @@
-import React, { useState, useEffect } from 'react';
-import { watchAuth, logout, supabase } from './utils/firebaseAuth.ts';
-import { CyberBackground } from './components/CyberBackground.tsx';
-import { Navbar } from './components/Navbar.tsx';
-import { TikTokScanner } from './components/TikTokScanner.tsx';
-import { ProfileResultCard } from './components/ProfileResultCard.tsx';
-import { SecurityScoreGauge } from './components/SecurityScoreGauge.tsx';
-import { ProblemsDiagnostic } from './components/ProblemsDiagnostic.tsx';
-import { AIAnalysisReport } from './components/AIAnalysisReport.tsx';
-import { AccountCompare } from './components/AccountCompare.tsx';
-import { AccountMonitor } from './components/AccountMonitor.tsx';
-import { PricingModal } from './components/PricingModal.tsx';
-import { UserDashboard } from './components/UserDashboard.tsx';
-import { AdminDashboard } from './components/AdminDashboard.tsx';
-import { PrintReportModal } from './components/PrintReportModal.tsx';
-import { StaticPages } from './components/StaticPages.tsx';
-import { AuthModal } from './components/AuthModal.tsx';
-
-import type {
-  TikTokProfile,
-  SecurityScore,
-  DiagnosticProblem,
-  GeminiAIReport,
-  UserAccount,
-} from './types/index.ts';
-
-export default function App() {
-  const [activeTab, setActiveTab] = useState('scanner');
-  const [isLoading, setIsLoading] = useState(false);
-  const [scanStep, setScanStep] = useState('');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Scanned profile state
-  const [currentProfile, setCurrentProfile] = useState<TikTokProfile | null>(null);
-  const [securityScore, setSecurityScore] = useState<SecurityScore | null>(null);
-  const [problems, setProblems] = useState<DiagnosticProblem[]>([]);
-  const [aiReport, setAiReport] = useState<GeminiAIReport | null>(null);
-  const [isAiLoading, setIsAiLoading] = useState(false);
-
-  // Modals
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [isPricingOpen, setIsPricingOpen] = useState(false);
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-
-  // User state
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
-  useEffect(() => watchAuth(setCurrentUser), []);
-  const [siteEnabled, setSiteEnabled] = useState(true);
-  const [statusReady, setStatusReady] = useState(false);
+import React, { lazy, Suspense, useEffect, useState } from "react";
+import { CyberBackground } from "./components/CyberBackground.tsx";
+import { watchAuth, logout, firebaseConfigured } from "./utils/firebaseAuth.ts";
+import { api } from "./utils/api.ts";
+import { cleanTikTokUsername } from "./utils/tiktok.ts";
+import type { UserAccount } from "./types/index.ts";
+const Results = lazy(() =>
+  import("./components/Results.tsx").then((m) => ({ default: m.Results })),
+);
+const AuthModal = lazy(() =>
+  import("./components/AuthModal.tsx").then((m) => ({ default: m.AuthModal })),
+);
+function SavedReports({ onLoad }: { onLoad: (r: any) => void }) {
+  const [items, setItems] = useState<any[]>([]),
+    [error, setError] = useState("");
+  const load = () =>
+    api("/api/reports")
+      .then((d) => setItems(d.reports))
+      .catch((e) => setError(e.message));
   useEffect(() => {
-    let live = true;
-    const load = async () => {
-      if (!supabase) return;
-      const { data } = await supabase.from('tksabr_site_settings').select('enabled').eq('id',1).maybeSingle();
-      if (live) { if (data) setSiteEnabled(Boolean(data.enabled)); setStatusReady(true); }
-    };
     void load();
-    const interval = setInterval(() => { void load(); }, 30000);
-    return () => { live = false; clearInterval(interval); };
   }, []);
-
-
-  // Execute account scan
-  const handleScanStart = async (username: string) => {
-    setIsLoading(true);
-    setErrorMessage(null);
-    setCurrentProfile(null);
-    setSecurityScore(null);
-    setProblems([]);
-    setAiReport(null);
-    setScanStep('1. التحقق من صيغة اسم المستخدم...');
-
-    // Progress updates
-    const t1 = setTimeout(() => {
-      setScanStep('2. الاتصال بخوادم TikTok وجلب البيانات الحقيقية...');
-    }, 400);
-
-    const t2 = setTimeout(() => {
-      setScanStep('3. استخراج الإحصائيات العامة ومعدل التفاعل...');
-    }, 900);
-
-    const t3 = setTimeout(() => {
-      setScanStep('4. حساب مؤشر الأمان وتشخيص المشاكل والحلول...');
-    }, 1400);
-
-    try {
-      const res = await fetch((globalThis as any).__TK_SABR_API__ || '/api/tiktok/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username }),
-      });
-
-      const data = await res.json();
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-
-      if (data.success && data.profile) {
-        setCurrentProfile(data.profile);
-        setSecurityScore(data.securityScore);
-        setProblems(data.problems || []);
-        setAiReport(null); // Reset AI report for new user
-
-        // Update scan quota
-        if (currentUser) {
-          setCurrentUser((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  scansUsedToday: prev.scansUsedToday + 1,
-                  totalScans: prev.totalScans + 1,
-                }
-              : null
-          );
-        }
-
-        // Scroll smoothly to results
-        setTimeout(() => {
-          const el = document.getElementById('scan-results');
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth' });
-          }
-        }, 150);
-      } else {
-        setErrorMessage(data.message || 'تعذر استخراج بيانات الحساب.');
-      }
-    } catch (err: any) {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      setErrorMessage('حدث خطأ في الاتصال بالخادم. يرجى إعادة المحاولة.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Generate evidence-based report, with optional model processing on the server.
-  const handleGenerateAIReport = async () => {
-    if (!currentProfile) return;
-    setIsAiLoading(true);
-    try {
-      const res = await fetch((globalThis as any).__TK_SABR_REPORT_API__ || '/api/gemini/analyze', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile: currentProfile, securityScore, action:'report' }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success || !data.report) throw new Error(data.message || 'فشل إنشاء التقرير');
-      setAiReport(data.report);
-      setErrorMessage(null);
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'تعذر إنشاء التقرير حالياً.');
-      window.alert(err?.message || 'تعذر إنشاء التقرير حالياً.');
-    } finally { setIsAiLoading(false); }
-  };
-
-  // Add account to monitoring
-  const handleAddToMonitor = async () => {
-    if (!currentProfile) return;
-    try {
-      const res = await fetch('/api/monitor/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentProfile.username }),
-      });
-      const data = await res.json();
-      alert(data.message || 'تعذر تفعيل المراقبة.');
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   return (
-    <div className="relative min-h-screen bg-[#030712] text-gray-100 flex flex-col selection:bg-cyan-500 selection:text-black">
-      {/* Background Matrix Mesh */}
-      <CyberBackground />
-
-      {/* Top Navbar */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        currentUser={currentUser}
-        onOpenAuth={() => setIsAuthOpen(true)}
-        onLogout={() => { void logout(); setCurrentUser(null); }}
-        onOpenPricing={() => setIsPricingOpen(true)}
-      />
-
-      {/* Backend-backed maintenance mode */}
-      {!siteEnabled && currentUser?.role !== 'admin' ? <main className="relative z-10 flex-1 flex items-center justify-center p-6"><div className="max-w-xl text-center p-10 rounded-3xl border border-amber-500/40 bg-gray-950/90"><h1 className="text-3xl font-black text-amber-300 mb-4">TK_SABR في وضع الصيانة</h1><p className="text-gray-300">الموقع متوقف مؤقتاً للزوار بقرار الإدارة. ارجع لاحقاً.</p></div></main> : <>
-      {/* Main View Router */}
-      <main className="flex-1 relative z-10">
-        {activeTab === 'scanner' && (
-          <div className="space-y-12 pb-16">
-            {/* Hero Input Section */}
-            <TikTokScanner
-              onScanStart={handleScanStart}
-              isLoading={isLoading}
-              scanStep={scanStep}
-              errorMessage={errorMessage}
-            />
-
-            {/* Results Section */}
-            {currentProfile && securityScore && (
-              <div id="scan-results" className="max-w-6xl mx-auto px-4 space-y-10">
-                {/* 1. Account Profile Card */}
-                <ProfileResultCard
-                  profile={currentProfile}
-                  onOpenAIReport={() => {
-                    handleGenerateAIReport();
-                    const el = document.getElementById('ai-report-section');
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  onOpenPdfReport={() => setIsPrintModalOpen(true)}
-                  onAddToMonitor={handleAddToMonitor}
-                  onCompareAccount={() => setActiveTab('compare')}
-                />
-
-                {/* 2. Security Score Circular Gauge */}
-                <SecurityScoreGauge securityScore={securityScore} />
-
-                {/* 3. Discovered Problems & Solutions */}
-                <ProblemsDiagnostic problems={problems} />
-
-                {/* 4. TK_SABR AI Engine via Gemini */}
-                <div id="ai-report-section">
-                  <AIAnalysisReport
-                    report={aiReport}
-                    isLoading={isAiLoading}
-                    onGenerateReport={handleGenerateAIReport}
-                    profile={currentProfile}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'compare' && (
-          <AccountCompare
-            initialProfiles={currentProfile ? [currentProfile] : []}
-          />
-        )}
-
-        {activeTab === 'monitor' && (
-          <AccountMonitor
-            onScanAccount={(user) => {
-              setActiveTab('scanner');
-              handleScanStart(user);
+    <section className="panel p-6 space-y-4">
+      <h2 className="text-xl">التقارير المحفوظة / Saved reports</h2>
+      {error && <p role="alert">{error}</p>}
+      {items.length === 0 && <p>لا توجد تقارير متاحة / No reports available</p>}
+      {[...new Set(items.map((r) => r.username))].map((name) => {
+        const pair = items.filter((r) => r.username === name).slice(0, 2);
+        if (pair.length < 2) return null;
+        return (
+          <article className="stat" key={name}>
+            <h3>@{name} — مقارنة آخر تقريرين محفوظين</h3>
+            <p className="text-xs text-slate-400 mt-2">
+              {pair[1].result.fetchedAt} → {pair[0].result.fetchedAt}
+            </p>
+            <div className="flex flex-wrap gap-5 mt-3">
+              {["followers", "likes", "videos"].map((k) => {
+                const current = pair[0].result.profile[k],
+                  previous = pair[1].result.profile[k];
+                return (
+                  <span key={k}>
+                    {k}:{" "}
+                    {current === null || previous === null
+                      ? "غير متاح"
+                      : current - previous}
+                  </span>
+                );
+              })}
+            </div>
+          </article>
+        );
+      })}
+      {items.map((r) => (
+        <div className="stat flex justify-between gap-3" key={r.id}>
+          <button onClick={() => onLoad(r.result)}>
+            @{r.username} — {new Date(r.created_at).toLocaleDateString()}
+          </button>
+          <button
+            className="button"
+            onClick={async () => {
+              try {
+                await api(`/api/reports/${r.id}`, undefined, "DELETE");
+                await load();
+              } catch (e) {
+                setError((e as Error).message);
+              }
             }}
-          />
-        )}
-
-        {activeTab === 'pricing' && (
-          <div className="py-6">
-            <PricingModal
-              isOpen={true}
-              onClose={() => setActiveTab('scanner')}
-              currentUser={currentUser}
-              onPlanUpgraded={(plan) => {
-                if (currentUser) {
-                  setCurrentUser({ ...currentUser, plan });
+          >
+            حذف / Delete
+          </button>
+        </div>
+      ))}
+    </section>
+  );
+}
+function Admin() {
+  const [d, setD] = useState<any>(null),
+    [error, setError] = useState("");
+  const load = () =>
+    api("/api/admin/overview")
+      .then(setD)
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    void load();
+  }, []);
+  return (
+    <section className="panel p-6 space-y-5">
+      <h2 className="text-xl">لوحة الإدارة / Admin</h2>
+      {error && <p role="alert">{error}</p>}
+      {d && (
+        <>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {Object.entries({ ...d.stats, ...d.counts }).map(([k, v]) => (
+              <div key={k} className="stat">
+                {k}: {String(v)}
+              </div>
+            ))}
+          </div>
+          <p>
+            المصدر {d.provider ? "مهيأ" : "غير مهيأ"} · AI{" "}
+            {d.ai ? "مهيأ" : "غير مهيأ"}
+          </p>
+          <p className="text-xs text-slate-400">
+            عدادات الطلبات منذ آخر تشغيل للخادم؛ لا تعني اختبار اتصال المزود.
+          </p>
+          <label className="flex flex-wrap gap-3 items-center">
+            حد الطلبات لكل دقيقة لكل عنوان اتصال
+            <input
+              type="number"
+              min="1"
+              max="120"
+              className="bg-slate-900 border border-slate-600 p-2 rounded w-24"
+              defaultValue={d.settings.scan_limit_per_minute || 20}
+              onBlur={async (e) => {
+                try {
+                  await api("/api/admin/settings", {
+                    enabled: d.settings.enabled,
+                    maintenance: d.settings.maintenance,
+                    scan_limit_per_minute: Number(e.target.value),
+                  });
+                  await load();
+                } catch (e) {
+                  setError((e as Error).message);
                 }
               }}
-              onRequireAuth={() => setIsAuthOpen(true)}
+            />
+          </label>
+          {d.recentErrors?.length > 0 && (
+            <details>
+              <summary>سجل الأخطاء المختصر</summary>
+              <ul className="text-xs space-y-2 mt-3">
+                {d.recentErrors.map((x: any, i: number) => (
+                  <li key={i}>
+                    {x.time} · {x.code} · HTTP {x.status}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {["enabled", "maintenance"].map((k) => (
+            <label className="flex gap-3" key={k}>
+              <input
+                type="checkbox"
+                checked={d.settings[k]}
+                onChange={async (e) => {
+                  try {
+                    await api("/api/admin/settings", {
+                      enabled: d.settings.enabled,
+                      maintenance: d.settings.maintenance,
+                      [k]: e.target.checked,
+                    });
+                    await load();
+                  } catch (e) {
+                    setError((e as Error).message);
+                  }
+                }}
+              />
+              {k === "enabled" ? "تفعيل الفحص" : "وضع الصيانة"}
+            </label>
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
+export default function App() {
+  const [english, setEnglish] = useState(false),
+    [reduced, setReduced] = useState(
+      () =>
+        localStorage.getItem("reduced-motion") === "true" ||
+        matchMedia("(prefers-reduced-motion: reduce)").matches,
+    ),
+    [input, setInput] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [result, setResult] = useState<any>(null),
+    [user, setUser] = useState<UserAccount | null>(null),
+    [authOpen, setAuthOpen] = useState(false),
+    [view, setView] = useState("scanner"),
+    [health, setHealth] = useState<any>(null);
+  const t = (ar: string, en: string) => (english ? en : ar);
+  useEffect(() => watchAuth(setUser), []);
+  useEffect(() => {
+    document.documentElement.lang = english ? "en" : "ar";
+    document.documentElement.dir = english ? "ltr" : "rtl";
+  }, [english]);
+  useEffect(() => {
+    document.documentElement.classList.toggle("reduce-motion", reduced);
+    localStorage.setItem("reduced-motion", String(reduced));
+  }, [reduced]);
+  useEffect(() => {
+    api("/api/health")
+      .then(setHealth)
+      .catch(() => setHealth({ offline: true }));
+  }, []);
+  async function scan(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    const username = cleanTikTokUsername(input);
+    if (!username) {
+      setError(
+        t(
+          "أدخل يوزراً صحيحاً أو رابط حساب TikTok الكامل.",
+          "Enter a valid username or full TikTok profile URL.",
+        ),
+      );
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setResult(null);
+    try {
+      setResult(await api("/api/tiktok/analyze", { username }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="min-h-screen relative">
+      <CyberBackground reduced={reduced} />
+      <header className="relative z-10 border-b border-slate-800/60">
+        <nav
+          className="max-w-6xl mx-auto px-5 py-5 flex items-center justify-between gap-4 flex-wrap"
+          aria-label="Main"
+        >
+          <button
+            className="font-black text-2xl tracking-wider"
+            onClick={() => setView("scanner")}
+            dir="ltr"
+          >
+            TK<span className="text-cyan-300">_</span>SABR
+            <span className="text-cyan-300 text-xs align-top"> ◇</span>
+          </button>
+          <div className="flex flex-wrap gap-3 items-center text-xs sm:text-sm">
+            <button className="button" onClick={() => setEnglish(!english)}>
+              {english ? "العربية" : "English"}
+            </button>
+            <button
+              className="button"
+              aria-pressed={reduced}
+              onClick={() => setReduced(!reduced)}
+            >
+              {t(
+                reduced ? "تشغيل الحركة" : "تقليل الحركة",
+                reduced ? "Enable motion" : "Reduce motion",
+              )}
+            </button>
+            {user ? (
+              <>
+                <button className="button" onClick={() => setView("saved")}>
+                  {t("تقاريري", "My reports")}
+                </button>
+                {user.role === "admin" && (
+                  <button className="button" onClick={() => setView("admin")}>
+                    {t("الإدارة", "Admin")}
+                  </button>
+                )}
+                <button
+                  className="button"
+                  onClick={async () => {
+                    await logout();
+                    setView("scanner");
+                  }}
+                >
+                  {t("خروج", "Sign out")}
+                </button>
+              </>
+            ) : firebaseConfigured ? (
+              <button className="button" onClick={() => setAuthOpen(true)}>
+                {t("تسجيل الدخول", "Sign in")}
+              </button>
+            ) : (
+              <span className="text-slate-500">
+                {t("الدخول غير مهيأ", "Sign-in not configured")}
+              </span>
+            )}
+          </div>
+        </nav>
+      </header>
+      <main className="relative z-10 max-w-6xl mx-auto px-5 pb-16">
+        {view === "scanner" ? (
+          <>
+            <section className="max-w-3xl mx-auto pt-16 sm:pt-24 pb-14 text-center intro">
+              <p
+                className="text-xs tracking-[.15em] text-cyan-300 mb-6"
+                dir="ltr"
+              >
+                PUBLIC DATA · CLEAR INSIGHTS
+              </p>
+              <h1 className="text-4xl sm:text-6xl font-black leading-[1.45]">
+                {t("محلل حسابات TikTok", "TikTok account analytics")}
+                <br />
+                <span className="text-cyan-300">
+                  {t("الذكي", "with clarity.")}
+                </span>
+              </h1>
+              <p className="text-slate-400 mt-6 max-w-xl mx-auto leading-8">
+                {t(
+                  "افهم البيانات المتاحة لحسابك، واكتشف فرص تطوير محتواك. نتائج من مصدر مخوّل، وتوصيات واضحة بحدود معلنة.",
+                  "Understand available account data and discover opportunities to improve your content. Authorized sources, transparent limits.",
+                )}
+              </p>
+              <form
+                className="panel p-5 sm:p-7 mt-9 text-start"
+                onSubmit={scan}
+              >
+                <label htmlFor="username" className="block text-sm mb-3">
+                  {t("أدخل يوزر حساب تيك توك", "Enter a TikTok username")}
+                </label>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    id="username"
+                    dir="ltr"
+                    className="min-w-0 flex-1 bg-slate-950 border border-slate-700 rounded-xl p-4 outline-none focus:border-cyan-300"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    maxLength={300}
+                    disabled={busy}
+                    placeholder="@username · https://www.tiktok.com/@username"
+                    autoComplete="off"
+                  />
+                  <button className="button primary px-6" disabled={busy}>
+                    {busy
+                      ? t("جاري الفحص…", "Analyzing…")
+                      : t("ابدأ فحص الحساب", "Analyze account")}{" "}
+                    <span aria-hidden="true">↗</span>
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mt-4">
+                  {t(
+                    "اليوزر أو @ أو رابط الحساب الكامل. لا نطلب كلمة مرور TikTok.",
+                    "Username, @handle or full profile URL. No TikTok password required.",
+                  )}
+                </p>
+                {busy && (
+                  <div
+                    className="flex items-center justify-center gap-3 p-5 text-cyan-300"
+                    role="status"
+                  >
+                    <span className="spinner" />
+                    {t(
+                      "التحقق من اليوزر وطلب البيانات المصرح بها…",
+                      "Validating username and requesting authorized data…",
+                    )}
+                  </div>
+                )}
+                {error && (
+                  <p
+                    role="alert"
+                    className="mt-5 p-4 rounded-xl bg-amber-950/30 border border-amber-600/30 text-amber-200 leading-7"
+                  >
+                    {error}
+                  </p>
+                )}
+              </form>
+              {health && (
+                <p className="mt-5 text-xs text-slate-400" role="status">
+                  {health.offline
+                    ? t(
+                        "الخادم غير متصل أو عنوانه غير مضبوط.",
+                        "Backend unreachable or not configured.",
+                      )
+                    : health.dataConfigured
+                      ? t(
+                          "مصدر البيانات مهيأ؛ الوصول يعتمد على صلاحياته.",
+                          "Data source configured; access depends on its permissions.",
+                        )
+                      : t(
+                          "الفحص بانتظار إعداد مصدر بيانات مخوّل. لا توجد نتائج تجريبية.",
+                          "Analysis awaits an authorized data source. No simulated results.",
+                        )}
+                </p>
+              )}
+            </section>
+            {result ? (
+              <Suspense
+                fallback={
+                  <p role="status">
+                    {t("تحضير النتائج…", "Preparing results…")}
+                  </p>
+                }
+              >
+                <Results
+                  key={result.username + result.fetchedAt}
+                  data={result}
+                  english={english}
+                  signedIn={!!user}
+                  onReset={() => {
+                    setResult(null);
+                    setInput("");
+                    document.getElementById("username")?.focus();
+                  }}
+                />
+              </Suspense>
+            ) : (
+              <section className="grid sm:grid-cols-3 gap-4 mb-10">
+                {[
+                  [
+                    t("01 / بيانات حقيقية", "01 / Real data"),
+                    t(
+                      "القيمة المفقودة تبقى غير متاحة، ولا تتحول إلى صفر.",
+                      "Missing values stay unavailable, never fabricated.",
+                    ),
+                  ],
+                  [
+                    t("02 / تحليل مفهوم", "02 / Transparent analysis"),
+                    t(
+                      "نوضح مصدر الأرقام وطريقة حساب التفاعل وحدود العينة.",
+                      "Clear provenance, formulas and sample limitations.",
+                    ),
+                  ],
+                  [
+                    t("03 / خصوصية أولاً", "03 / Privacy first"),
+                    t(
+                      "الحفظ اختياري للحساب المسجل؛ والتقارير خاصة بصاحبها.",
+                      "Optional saving for signed-in users, with private reports.",
+                    ),
+                  ],
+                ].map(([h, p]) => (
+                  <article className="panel p-6" key={h}>
+                    <h2 className="font-bold text-cyan-200 text-sm">{h}</h2>
+                    <p className="text-slate-400 text-sm mt-4 leading-7">{p}</p>
+                  </article>
+                ))}
+              </section>
+            )}
+          </>
+        ) : view === "admin" ? (
+          <div className="py-12">
+            <Admin />
+          </div>
+        ) : user ? (
+          <div className="py-12">
+            <SavedReports
+              onLoad={(r) => {
+                setResult(r);
+                setView("scanner");
+              }}
             />
           </div>
-        )}
-
-        {activeTab === 'dashboard' && currentUser && (
-          <UserDashboard
-            user={currentUser}
-            onScanAccount={(user) => {
-              setActiveTab('scanner');
-              handleScanStart(user);
-            }}
-            onOpenPricing={() => setIsPricingOpen(true)}
-          />
-        )}
-
-        {activeTab === 'admin' && currentUser?.role === 'admin' && <AdminDashboard user={currentUser}/>}
-
-        {activeTab === 'info' && <StaticPages initialSubTab="about" />}
-        {activeTab === 'privacy' && <StaticPages initialSubTab="privacy" />}
-        {activeTab === 'terms' && <StaticPages initialSubTab="terms" />}
+        ) : null}
       </main>
-
-      </>}
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        onLoginSuccess={(usr) => setCurrentUser(usr)}
-      />
-
-      {/* Global Pricing Modal */}
-      <PricingModal
-        isOpen={isPricingOpen}
-        onClose={() => setIsPricingOpen(false)}
-        currentUser={currentUser}
-        onPlanUpgraded={(plan) => {
-          if (currentUser) {
-            setCurrentUser({ ...currentUser, plan });
-          }
-        }}
-        onRequireAuth={() => setIsAuthOpen(true)}
-      />
-
-      {/* PDF Printable Report Modal */}
-      {currentProfile && securityScore && (
-        <PrintReportModal
-          isOpen={isPrintModalOpen}
-          onClose={() => setIsPrintModalOpen(false)}
-          profile={currentProfile}
-          securityScore={securityScore}
-          problems={problems}
-          aiReport={aiReport}
-        />
-      )}
-
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-gray-900 bg-gray-950/95 py-10 text-center text-xs text-gray-400 print:hidden">
-        <div className="max-w-6xl mx-auto px-4 space-y-4">
-          <div className="flex flex-wrap items-center justify-center gap-6 text-gray-300">
-            <button
-              onClick={() => setActiveTab('scanner')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              فاحص الحسابات
-            </button>
-            <button
-              onClick={() => setActiveTab('compare')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              أداة المقارنة
-            </button>
-            <button
-              onClick={() => setActiveTab('monitor')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              المراقبة الذكية
-            </button>
-            <button
-              onClick={() => setActiveTab('pricing')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              الباقات والدفع المصرفي
-            </button>
-            <button
-              onClick={() => setActiveTab('privacy')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              سياسة الخصوصية
-            </button>
-            <button
-              onClick={() => setActiveTab('terms')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              شروط الاستخدام
-            </button>
-          </div>
-
-          <p className="text-gray-400 max-w-xl mx-auto text-[11px] leading-relaxed">
-            منصة TK_SABR الاستخباراتية لفحص وتحليل حسابات TikTok العامة. لا تتبع المنصة شركة TikTok أو ByteDance بشكل رسمي، وتعتمد في الفحص على البيانات العامة المصرح بها قانونياً.
-          </p>
-
-          {/* Mandatory user footer specification */}
-          <div className="pt-2 border-t border-gray-900 text-cyan-400 text-sm font-bold tracking-wide">
-            تم التطوير بواسطة المبرمج المجهول
-          </div>
-        </div>
+      <footer className="relative z-10 border-t border-slate-800/60 text-center px-5 py-8 text-xs text-slate-400 print:hidden">
+        <p>
+          {t(
+            "نسبة أمان الحساب تقييم تقديري للمؤشرات العامة؛ لا يكشف الاختراق أو عقوبات TikTok.",
+            "Account safety is an estimated public indicator, not a compromise or penalty detector.",
+          )}
+        </p>
+        <p className="mt-4 text-cyan-200">
+          {t(
+            "تم التطوير بواسطة المبرمج المجهول",
+            "Developed by المبرمج المجهول",
+          )}{" "}
+          · TK_SABR
+        </p>
       </footer>
+      {authOpen && (
+        <Suspense fallback={<p role="status">Loading…</p>}>
+          <AuthModal
+            isOpen={authOpen}
+            onClose={() => setAuthOpen(false)}
+            onLoginSuccess={(u) => {
+              setUser(u);
+              setAuthOpen(false);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

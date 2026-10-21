@@ -8,7 +8,7 @@ const url: string = published.supabaseUrl || env.VITE_SUPABASE_URL || '';
 const key: string = published.supabaseKey || env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
 export const firebaseConfigured = Boolean(url && key);
 export const auth = firebaseConfigured ? createClient(url, key, {
-  auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
+  auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true, flowType: 'pkce' }
 }) : null;
 
 async function mapAuthUser(user: any): Promise<UserAccount> {

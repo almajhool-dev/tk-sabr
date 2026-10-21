@@ -1,8 +1,151 @@
-@import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss" source(none);
+@source "./App.tsx";
+@source "./components/Results.tsx";
+@source "./components/AuthModal.tsx";
+@source "./components/CyberBackground.tsx";
 
 @layer base {
   body {
-    font-family: 'Cairo', 'Noto Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-family:
+      "Cairo", "Noto Sans Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
+  }
+}
+
+.panel {
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.88),
+    rgba(5, 10, 23, 0.94)
+  );
+  border: 1px solid #233044;
+  border-radius: 20px;
+  box-shadow: 0 10px 40px #0002;
+}
+.stat {
+  padding: 18px;
+  border-radius: 12px;
+  background: #111c2b80;
+  border: 1px solid #263247;
+}
+.button {
+  padding: 10px 16px;
+  border: 1px solid #304157;
+  border-radius: 10px;
+  background: #111b2c;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+  cursor: pointer;
+  color: #dce8f5;
+}
+.button:hover {
+  background: #1c2d43;
+}
+.button:focus-visible,
+button:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 4px;
+}
+.button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.primary {
+  background: #67e8f9;
+  color: #071321;
+  border-color: #67e8f9;
+  font-weight: 800;
+}
+.primary:hover {
+  background: #a5f3fc;
+}
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #164e63;
+  border-top-color: #67e8f9;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+.gauge {
+  height: 150px;
+  width: 150px;
+  border-radius: 50%;
+  margin: 24px auto;
+  background: conic-gradient(#67e8f9 var(--score), #1e293b 0);
+  display: grid;
+  place-items: center;
+}
+.gauge strong {
+  height: 128px;
+  width: 128px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #0b1425;
+  font-size: 32px;
+}
+.intro {
+  animation: enter 0.7s ease-out;
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media print {
+  header,
+  footer,
+  form,
+  button,
+  canvas,
+  .intro {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .panel,
+  .stat {
+    background: white !important;
+    color: black !important;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  .results {
+    display: block !important;
+  }
+  .results * {
+    color: black !important;
+  }
+  .results .panel {
+    margin-bottom: 20px;
   }
 }
