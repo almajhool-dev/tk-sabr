@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
-export const CyberBackground: React.FC = () => {
+export const CyberBackground: React.FC<{reduced?:boolean}> = ({reduced=false}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -14,7 +14,7 @@ export const CyberBackground: React.FC = () => {
     let height = (canvas.height = window.innerHeight);
 
     // Check prefers-reduced-motion or headless testing
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const prefersReducedMotion = reduced || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const isHeadless = /HeadlessChrome/i.test(navigator.userAgent) || navigator.webdriver;
 
     const handleResize = () => {
@@ -118,7 +118,7 @@ export const CyberBackground: React.FC = () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [reduced]);
 
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">

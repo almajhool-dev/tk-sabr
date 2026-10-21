@@ -8,15 +8,11 @@ const url: string = published.supabaseUrl || env.VITE_SUPABASE_URL || '';
 const key: string = published.supabaseKey || env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
 export const firebaseConfigured = Boolean(url && key);
 export const auth = firebaseConfigured ? createClient(url, key, {
-  auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
+  auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true, flowType: 'pkce' }
 }) : null;
 
 async function mapAuthUser(user: any): Promise<UserAccount> {
-  let role: 'admin' | 'user' = 'user';
-  if (auth) {
-    const { data } = await auth.from('tksabr_admins').select('uid').eq('uid', user.id).maybeSingle();
-    if (data?.uid === user.id) role = 'admin';
-  }
+  const role: 'user' = 'user'; // Admin authorization is verified by /api/me on the server.
   return {
     id: user.id, name: String(user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'مستخدم'),
     email: String(user.email || ''), avatar: String(user.user_metadata?.avatar_url || user.user_metadata?.picture || ''),

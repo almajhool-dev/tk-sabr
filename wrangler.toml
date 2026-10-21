@@ -1,0 +1,16 @@
+name = "tk-sabr-api"
+main = "backend/worker/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+[observability]
+enabled = true
+[triggers]
+crons = ["0 * * * *"]
+[vars]
+ALLOWED_ORIGIN = "https://almajhool-dev.github.io"
+DATA_PROVIDER_NAME = ""
+DATA_PROVIDER_APPROVED = "false"
+[[d1_databases]]
+binding = "DB"
+database_name = "tk-sabr"
+database_id = "00000000-0000-0000-0000-000000000000"

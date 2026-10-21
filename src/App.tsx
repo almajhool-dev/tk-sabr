@@ -1,373 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { watchAuth, logout, supabase } from './utils/firebaseAuth.ts';
-import { CyberBackground } from './components/CyberBackground.tsx';
-import { Navbar } from './components/Navbar.tsx';
-import { TikTokScanner } from './components/TikTokScanner.tsx';
-import { ProfileResultCard } from './components/ProfileResultCard.tsx';
-import { SecurityScoreGauge } from './components/SecurityScoreGauge.tsx';
-import { ProblemsDiagnostic } from './components/ProblemsDiagnostic.tsx';
-import { AIAnalysisReport } from './components/AIAnalysisReport.tsx';
-import { AccountCompare } from './components/AccountCompare.tsx';
-import { AccountMonitor } from './components/AccountMonitor.tsx';
-import { PricingModal } from './components/PricingModal.tsx';
-import { UserDashboard } from './components/UserDashboard.tsx';
-import { AdminDashboard } from './components/AdminDashboard.tsx';
-import { PrintReportModal } from './components/PrintReportModal.tsx';
-import { StaticPages } from './components/StaticPages.tsx';
-import { AuthModal } from './components/AuthModal.tsx';
-
-import type {
-  TikTokProfile,
-  SecurityScore,
-  DiagnosticProblem,
-  GeminiAIReport,
-  UserAccount,
-} from './types/index.ts';
-
-export default function App() {
-  const [activeTab, setActiveTab] = useState('scanner');
-  const [isLoading, setIsLoading] = useState(false);
-  const [scanStep, setScanStep] = useState('');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Scanned profile state
-  const [currentProfile, setCurrentProfile] = useState<TikTokProfile | null>(null);
-  const [securityScore, setSecurityScore] = useState<SecurityScore | null>(null);
-  const [problems, setProblems] = useState<DiagnosticProblem[]>([]);
-  const [aiReport, setAiReport] = useState<GeminiAIReport | null>(null);
-  const [isAiLoading, setIsAiLoading] = useState(false);
-
-  // Modals
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [isPricingOpen, setIsPricingOpen] = useState(false);
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-
-  // User state
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
-  useEffect(() => watchAuth(setCurrentUser), []);
-  const [siteEnabled, setSiteEnabled] = useState(true);
-  const [statusReady, setStatusReady] = useState(false);
-  useEffect(() => {
-    let live = true;
-    const load = async () => {
-      if (!supabase) return;
-      const { data } = await supabase.from('tksabr_site_settings').select('enabled').eq('id',1).maybeSingle();
-      if (live) { if (data) setSiteEnabled(Boolean(data.enabled)); setStatusReady(true); }
-    };
-    void load();
-    const interval = setInterval(() => { void load(); }, 30000);
-    return () => { live = false; clearInterval(interval); };
-  }, []);
-
-
-  // Execute account scan
-  const handleScanStart = async (username: string) => {
-    setIsLoading(true);
-    setErrorMessage(null);
-    setCurrentProfile(null);
-    setSecurityScore(null);
-    setProblems([]);
-    setAiReport(null);
-    setScanStep('1. التحقق من صيغة اسم المستخدم...');
-
-    // Progress updates
-    const t1 = setTimeout(() => {
-      setScanStep('2. الاتصال بخوادم TikTok وجلب البيانات الحقيقية...');
-    }, 400);
-
-    const t2 = setTimeout(() => {
-      setScanStep('3. استخراج الإحصائيات العامة ومعدل التفاعل...');
-    }, 900);
-
-    const t3 = setTimeout(() => {
-      setScanStep('4. حساب مؤشر الأمان وتشخيص المشاكل والحلول...');
-    }, 1400);
-
-    try {
-      const res = await fetch((globalThis as any).__TK_SABR_API__ || '/api/tiktok/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username }),
-      });
-
-      const data = await res.json();
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-
-      if (data.success && data.profile) {
-        setCurrentProfile(data.profile);
-        setSecurityScore(data.securityScore);
-        setProblems(data.problems || []);
-        setAiReport(null); // Reset AI report for new user
-
-        // Update scan quota
-        if (currentUser) {
-          setCurrentUser((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  scansUsedToday: prev.scansUsedToday + 1,
-                  totalScans: prev.totalScans + 1,
-                }
-              : null
-          );
-        }
-
-        // Scroll smoothly to results
-        setTimeout(() => {
-          const el = document.getElementById('scan-results');
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth' });
-          }
-        }, 150);
-      } else {
-        setErrorMessage(data.message || 'تعذر استخراج بيانات الحساب.');
-      }
-    } catch (err: any) {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      setErrorMessage('حدث خطأ في الاتصال بالخادم. يرجى إعادة المحاولة.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Generate evidence-based report, with optional model processing on the server.
-  const handleGenerateAIReport = async () => {
-    if (!currentProfile) return;
-    setIsAiLoading(true);
-    try {
-      const res = await fetch((globalThis as any).__TK_SABR_REPORT_API__ || '/api/gemini/analyze', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile: currentProfile, securityScore, action:'report' }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success || !data.report) throw new Error(data.message || 'فشل إنشاء التقرير');
-      setAiReport(data.report);
-      setErrorMessage(null);
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'تعذر إنشاء التقرير حالياً.');
-      window.alert(err?.message || 'تعذر إنشاء التقرير حالياً.');
-    } finally { setIsAiLoading(false); }
-  };
-
-  // Add account to monitoring
-  const handleAddToMonitor = async () => {
-    if (!currentProfile) return;
-    try {
-      const res = await fetch('/api/monitor/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentProfile.username }),
-      });
-      const data = await res.json();
-      alert(data.message || 'تعذر تفعيل المراقبة.');
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  return (
-    <div className="relative min-h-screen bg-[#030712] text-gray-100 flex flex-col selection:bg-cyan-500 selection:text-black">
-      {/* Background Matrix Mesh */}
-      <CyberBackground />
-
-      {/* Top Navbar */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        currentUser={currentUser}
-        onOpenAuth={() => setIsAuthOpen(true)}
-        onLogout={() => { void logout(); setCurrentUser(null); }}
-        onOpenPricing={() => setIsPricingOpen(true)}
-      />
-
-      {/* Backend-backed maintenance mode */}
-      {!siteEnabled && currentUser?.role !== 'admin' ? <main className="relative z-10 flex-1 flex items-center justify-center p-6"><div className="max-w-xl text-center p-10 rounded-3xl border border-amber-500/40 bg-gray-950/90"><h1 className="text-3xl font-black text-amber-300 mb-4">TK_SABR في وضع الصيانة</h1><p className="text-gray-300">الموقع متوقف مؤقتاً للزوار بقرار الإدارة. ارجع لاحقاً.</p></div></main> : <>
-      {/* Main View Router */}
-      <main className="flex-1 relative z-10">
-        {activeTab === 'scanner' && (
-          <div className="space-y-12 pb-16">
-            {/* Hero Input Section */}
-            <TikTokScanner
-              onScanStart={handleScanStart}
-              isLoading={isLoading}
-              scanStep={scanStep}
-              errorMessage={errorMessage}
-            />
-
-            {/* Results Section */}
-            {currentProfile && securityScore && (
-              <div id="scan-results" className="max-w-6xl mx-auto px-4 space-y-10">
-                {/* 1. Account Profile Card */}
-                <ProfileResultCard
-                  profile={currentProfile}
-                  onOpenAIReport={() => {
-                    handleGenerateAIReport();
-                    const el = document.getElementById('ai-report-section');
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  onOpenPdfReport={() => setIsPrintModalOpen(true)}
-                  onAddToMonitor={handleAddToMonitor}
-                  onCompareAccount={() => setActiveTab('compare')}
-                />
-
-                {/* 2. Security Score Circular Gauge */}
-                <SecurityScoreGauge securityScore={securityScore} />
-
-                {/* 3. Discovered Problems & Solutions */}
-                <ProblemsDiagnostic problems={problems} />
-
-                {/* 4. TK_SABR AI Engine via Gemini */}
-                <div id="ai-report-section">
-                  <AIAnalysisReport
-                    report={aiReport}
-                    isLoading={isAiLoading}
-                    onGenerateReport={handleGenerateAIReport}
-                    profile={currentProfile}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'compare' && (
-          <AccountCompare
-            initialProfiles={currentProfile ? [currentProfile] : []}
-          />
-        )}
-
-        {activeTab === 'monitor' && (
-          <AccountMonitor
-            onScanAccount={(user) => {
-              setActiveTab('scanner');
-              handleScanStart(user);
-            }}
-          />
-        )}
-
-        {activeTab === 'pricing' && (
-          <div className="py-6">
-            <PricingModal
-              isOpen={true}
-              onClose={() => setActiveTab('scanner')}
-              currentUser={currentUser}
-              onPlanUpgraded={(plan) => {
-                if (currentUser) {
-                  setCurrentUser({ ...currentUser, plan });
-                }
-              }}
-              onRequireAuth={() => setIsAuthOpen(true)}
-            />
-          </div>
-        )}
-
-        {activeTab === 'dashboard' && currentUser && (
-          <UserDashboard
-            user={currentUser}
-            onScanAccount={(user) => {
-              setActiveTab('scanner');
-              handleScanStart(user);
-            }}
-            onOpenPricing={() => setIsPricingOpen(true)}
-          />
-        )}
-
-        {activeTab === 'admin' && currentUser?.role === 'admin' && <AdminDashboard user={currentUser}/>}
-
-        {activeTab === 'info' && <StaticPages initialSubTab="about" />}
-        {activeTab === 'privacy' && <StaticPages initialSubTab="privacy" />}
-        {activeTab === 'terms' && <StaticPages initialSubTab="terms" />}
-      </main>
-
-      </>}
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        onLoginSuccess={(usr) => setCurrentUser(usr)}
-      />
-
-      {/* Global Pricing Modal */}
-      <PricingModal
-        isOpen={isPricingOpen}
-        onClose={() => setIsPricingOpen(false)}
-        currentUser={currentUser}
-        onPlanUpgraded={(plan) => {
-          if (currentUser) {
-            setCurrentUser({ ...currentUser, plan });
-          }
-        }}
-        onRequireAuth={() => setIsAuthOpen(true)}
-      />
-
-      {/* PDF Printable Report Modal */}
-      {currentProfile && securityScore && (
-        <PrintReportModal
-          isOpen={isPrintModalOpen}
-          onClose={() => setIsPrintModalOpen(false)}
-          profile={currentProfile}
-          securityScore={securityScore}
-          problems={problems}
-          aiReport={aiReport}
-        />
-      )}
-
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-gray-900 bg-gray-950/95 py-10 text-center text-xs text-gray-400 print:hidden">
-        <div className="max-w-6xl mx-auto px-4 space-y-4">
-          <div className="flex flex-wrap items-center justify-center gap-6 text-gray-300">
-            <button
-              onClick={() => setActiveTab('scanner')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              فاحص الحسابات
-            </button>
-            <button
-              onClick={() => setActiveTab('compare')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              أداة المقارنة
-            </button>
-            <button
-              onClick={() => setActiveTab('monitor')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              المراقبة الذكية
-            </button>
-            <button
-              onClick={() => setActiveTab('pricing')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              الباقات والدفع المصرفي
-            </button>
-            <button
-              onClick={() => setActiveTab('privacy')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              سياسة الخصوصية
-            </button>
-            <button
-              onClick={() => setActiveTab('terms')}
-              className="hover:text-cyan-400 transition-colors cursor-pointer"
-            >
-              شروط الاستخدام
-            </button>
-          </div>
-
-          <p className="text-gray-400 max-w-xl mx-auto text-[11px] leading-relaxed">
-            منصة TK_SABR الاستخباراتية لفحص وتحليل حسابات TikTok العامة. لا تتبع المنصة شركة TikTok أو ByteDance بشكل رسمي، وتعتمد في الفحص على البيانات العامة المصرح بها قانونياً.
-          </p>
-
-          {/* Mandatory user footer specification */}
-          <div className="pt-2 border-t border-gray-900 text-cyan-400 text-sm font-bold tracking-wide">
-            تم التطوير بواسطة المبرمج المجهول
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
+import React,{lazy,Suspense,useEffect,useRef,useState} from 'react';
+import {Shield,ArrowUpLeft,ScanLine,Globe,LogOut,History,Activity,Lock,FileCheck,ChevronLeft,Menu,Minus,Plus} from 'lucide-react';
+import {motion,MotionConfig} from 'motion/react';
+import {CyberBackground} from './components/CyberBackground.tsx';
+import {watchAuth,logout,firebaseConfigured} from './utils/firebaseAuth.ts';
+import {request} from './utils/api.ts';
+import {normalizeUsername,type Scan} from '../shared/analysis.ts';
+import type {UserAccount} from './types/index.ts';
+const Results=lazy(()=>import('./components/Results.tsx'));
+const AccountPanel=lazy(()=>import('./components/AccountPanel.tsx'));
+const AuthModal=lazy(()=>import('./components/AuthModal.tsx').then(m=>({default:m.AuthModal})));
+interface Status {providerConfigured:boolean;authConfigured:boolean;aiConfigured:boolean;maintenance:boolean;scanning:boolean;notice:string}
+export default function App(){
+  const[en,setEn]=useState(false),[reduced,setReduced]=useState(()=>localStorage.getItem('tk-motion')==='off'||matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const[user,setUser]=useState<UserAccount|null>(null),[admin,setAdmin]=useState(false),[authOpen,setAuthOpen]=useState(false),[page,setPage]=useState<'scan'|'history'|'admin'>('scan');
+  const[status,setStatus]=useState<Status|null>(null),[input,setInput]=useState(''),[busy,setBusy]=useState(false),[phase,setPhase]=useState(''),[error,setError]=useState(''),[scan,setScan]=useState<Scan|null>(null),[showHelp,setShowHelp]=useState(false);
+  const[boot,setBoot]=useState(()=>!sessionStorage.getItem('tk-intro'));
+  const lock=useRef(false),alive=useRef(true),abort=useRef<AbortController|null>(null);
+  const t=(ar:string,english:string)=>en?english:ar;
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;abort.current?.abort();};},[]);
+  useEffect(()=>watchAuth(setUser),[]);
+  useEffect(()=>{document.documentElement.lang=en?'en':'ar';document.documentElement.dir=en?'ltr':'rtl';},[en]);
+  useEffect(()=>{document.documentElement.dataset.motion=reduced?'off':'on';localStorage.setItem('tk-motion',reduced?'off':'on');},[reduced]);
+  useEffect(()=>{const timer=setTimeout(()=>{setBoot(false);sessionStorage.setItem('tk-intro','1');},reduced?0:950);return()=>clearTimeout(timer);},[]);
+  useEffect(()=>{void request<Status>('/api/status').then(setStatus).catch(()=>setStatus(null));},[]);
+  useEffect(()=>{setAdmin(false);if(user)void request<{admin:boolean}>('/api/me').then(v=>setAdmin(v.admin)).catch(()=>{});},[user?.id]);
+  async function submit(e:React.FormEvent){
+    e.preventDefault();if(lock.current)return;
+    try{normalizeUsername(input);}catch{setError(t('أدخل يوزر صحيحاً أو رابط حساب TikTok كاملاً. الروابط المختصرة غير مدعومة.','Enter a valid username or full TikTok profile URL. Short links are unsupported.'));return;}
+    lock.current=true;setBusy(true);setError('');setScan(null);setPhase(t('تم التحقق من اليوزر • بانتظار بيانات المصدر','Username validated • Waiting for the provider'));
+    abort.current=new AbortController();const timer=setTimeout(()=>abort.current?.abort(),24000);
+    try{const result=await request<Scan>('/api/tiktok/analyze',{method:'POST',body:JSON.stringify({username:input}),signal:abort.current.signal});if(alive.current){setPhase(t('اكتمل التحليل','Analysis complete'));setScan(result);}}
+    catch(e){if(alive.current)setError(e instanceof Error?e.message:t('فشل الفحص','Scan failed'));}
+    finally{clearTimeout(timer);lock.current=false;if(alive.current)setBusy(false);}
+  }
+  const unavailable=status?.maintenance||status?.scanning===false;
+  return <MotionConfig reducedMotion={reduced?'always':'user'}><div className="app-shell" dir={en?'ltr':'rtl'}>
+    <CyberBackground reduced={reduced}/>
+    {boot&&!reduced&&<div className="intro" aria-hidden="true"><Shield size={55}/><b>TK_SABR</b><span>PUBLIC SIGNALS. CLEAR INSIGHTS.</span></div>}
+    <header className="site-header"><div className="header-inner"><a className="brand" href="#" onClick={()=>setPage('scan')} aria-label="TK_SABR home"><span className="brand-icon"><Shield size={23}/></span><b>TK<span>_</span>SABR</b><small>ACCOUNT INTELLIGENCE</small></a>
+    <nav aria-label={t('القائمة الرئيسية','Main navigation')}><button className={page==='scan'?'active':''} onClick={()=>setPage('scan')}>{t('محلل الحسابات','Analyzer')}</button>{user&&<button className={page==='history'?'active':''} onClick={()=>setPage('history')}>{t('تقاريري','My reports')}</button>}{admin&&<button onClick={()=>setPage('admin')}>{t('الإدارة','Admin')}</button>}</nav>
+    <div className="header-actions"><button className="icon-button" onClick={()=>setEn(!en)} aria-label="Change language"><Globe size={16}/>{en?'عربي':'EN'}</button><button className="icon-button motion-toggle" aria-pressed={reduced} onClick={()=>setReduced(!reduced)}>{t(reduced?'الحركة متوقفة':'تقليل الحركة',reduced?'Motion off':'Reduce motion')}</button>{user?<button className="quiet-button" onClick={()=>{void logout().catch(()=>setError(t('تعذر تسجيل الخروج','Sign-out failed')));setPage('scan');}} aria-label={t('تسجيل الخروج','Sign out')}><LogOut size={16}/></button>:<button className="login-button" onClick={()=>setAuthOpen(true)}>{t('تسجيل الدخول','Sign in')}<ArrowUpLeft size={15}/></button>}</div></div></header>
+    <main id="main-content">
+    {page==='scan'?<>
+      <section className="hero"><motion.div initial={reduced?false:{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{duration:.45}}>
+      <div className="eyebrow"><span className="signal-dot"/>{t('اقرأ البيانات. افهم حسابك.','READ THE SIGNALS. UNDERSTAND YOUR ACCOUNT.')}</div>
+      <h1>{t('كل حساب يحچي قصة.','Every account tells a story.')}<br/><span>{t('اكتشف قصّة حسابك.','Discover yours.')}</span></h1>
+      <p className="hero-copy">{t('حوّل بيانات حساب TikTok العامة إلى رؤى واضحة وتوصيات عملية. تحليل مبني على الأدلة، من دون تخمين الأرقام.','Turn public TikTok data into clear insights and practical recommendations. Evidence-led analysis, without invented numbers.')}</p>
+      </motion.div>
+      <section className="scan-card" aria-labelledby="scan-title"><div className="scan-heading"><span className="small-icon"><ScanLine size={22}/></span><div><h2 id="scan-title">{t('محلل حسابات TikTok الذكي','Smart TikTok account analyzer')}</h2><p>{t('ابدأ باسم المستخدم أو رابط الحساب','Start with a username or profile URL')}</p></div><span className="public-pill">PUBLIC DATA</span></div>
+      <form onSubmit={submit}><label className="sr-only" htmlFor="username">{t('أدخل يوزر حساب تيك توك','TikTok username')}</label><div className="scan-input-row"><span className="at" aria-hidden="true">@</span><input id="username" dir="ltr" autoComplete="off" spellCheck={false} maxLength={500} value={input} onChange={e=>setInput(e.target.value)} placeholder={t('أدخل يوزر حساب تيك توك','Enter a TikTok username')} disabled={busy} aria-describedby="input-hint scan-error"/><button className="primary-button" disabled={busy||!!unavailable} type="submit">{busy?<span className="spinner"/>:<ScanLine size={18}/>}<span>{busy?t('جاري الفحص…','Analyzing…'):t('ابدأ فحص الحساب','Analyze account')}</span><ArrowUpLeft size={17}/></button></div><p id="input-hint" className="input-hint"><Lock size={12}/>{t('بدون كلمة مرور TikTok • الحسابات العامة فقط','No TikTok password • Public accounts only')}<span>username / @username / tiktok.com/@username</span></p></form>
+      {busy&&<p role="status" className="progress-message"><span className="spinner"/>{phase}</p>}
+      <div id="scan-error" aria-live="polite">{error&&<p role="alert" className="error-box">{error}</p>}</div>
+      <div className={'provider-notice '+(status?.providerConfigured?'ready':'')}><span className="status-light"/><div><strong>{status?.providerConfigured?t('مصدر البيانات مهيأ','Data provider configured'):t('بانتظار ربط مصدر بيانات مصرح به','Authorized data provider setup required')}</strong><p>{unavailable?status?.notice||t('الفحص متوقف مؤقتاً للصيانة.','Scanning is temporarily paused.'):status?.providerConfigured?t('النتائج تعتمد على البيانات التي يسمح المصدر بإتاحتها.','Results depend on the data permitted by the source.'):t('لن نعرض أرقاماً تجريبية. يظهر الفحص الحقيقي بعد تهيئة المزود والخادم.','We never show demo statistics. Live scans require a configured provider and backend.')}</p></div></div>
+      </section>
+      <div className="trust-line"><span><Shield size={14}/>{t('بيانات حقيقية فقط','Real data only')}</span><i/><span><FileCheck size={14}/>{t('تقرير واضح المصدر','Transparent sources')}</span><i/><span><Activity size={14}/>{t('تحليل قابل للتفسير','Explainable analysis')}</span></div>
+      </section>
+      {scan&&<Suspense fallback={<p className="loading-text">{t('تحضير النتائج…','Preparing results…')}</p>}><Results scan={scan} en={en} user={user} onNew={()=>{setScan(null);setInput('');document.getElementById('username')?.focus();}} onLogin={()=>setAuthOpen(true)}/></Suspense>}
+      {!scan&&<section className="method-section"><div className="section-label">THE PROCESS / {t('طريقة العمل','HOW IT WORKS')}</div><h2>{t('من اليوزر إلى الصورة الأوضح.','From a username to the bigger picture.')}</h2><div className="steps-grid">{[[ScanLine,t('أدخل الحساب','Enter the account'),t('يوزر أو رابط مباشر لحساب TikTok عام.','A username or direct public TikTok profile URL.')],[Activity,t('نقرأ الإشارات','Read the signals'),t('بيانات مصرح بها، ومقاييس محسوبة بوضوح.','Authorized data and clearly defined metrics.')],[FileCheck,t('استلم رؤى قابلة للتطبيق','Get actionable insights'),t('ملاحظات مفسّرة وتوصيات تساعدك تتطور.','Explained observations and practical next steps.')]].map(([Icon,title,copy]:any,i)=><article key={title}><div className="step-top"><Icon size={23}/><span>0{i+1}</span></div><h3>{title}</h3><p>{copy}</p></article>)}</div></section>}
+      <section className="scope-section"><button onClick={()=>setShowHelp(!showHelp)} aria-expanded={showHelp}><span><Shield size={19}/>{t('شنو يگدر التحليل يعرف؟','What can this analysis tell you?')}</span>{showHelp?<Minus size={18}/>:<Plus size={18}/>}</button>{showHelp&&<p>{t('نحلل الملف والنشاط والتفاعل عند توفر بيانات كافية. «نسبة أمان الحساب» تقييم تقديري للمؤشرات العامة فقط. لا يمكن إثبات الاختراق أو الانتهاكات أو Shadowban أو أمان كلمة المرور من اليوزر.','We analyze profile, activity, and engagement when sufficient data exists. The account safety score estimates public profile signals only. A username cannot prove hacks, violations, shadowbans, or password security.')}</p>}</section>
+    </>:<Suspense fallback={<p className="loading-text">{t('جاري التحميل…','Loading…')}</p>}><AccountPanel mode={page} en={en} admin={admin} onLoad={s=>{setScan(s);setPage('scan');}}/></Suspense>}
+    </main>
+    <footer className="site-footer"><div><b>TK_SABR</b><p>{t('تم التطوير بواسطة المبرمج المجهول','Developed by المبرمج المجهول')}</p></div><p>{t('تحليل عام، قرارات أوضح. غير تابع لشركة TikTok.','Public insights. Clearer decisions. Not affiliated with TikTok.')}</p><span>© {new Date().getFullYear()} TK_SABR</span></footer>
+    {authOpen&&<Suspense fallback={<p role="status">Loading…</p>}><AuthModal isOpen={authOpen} onClose={()=>setAuthOpen(false)} onLoginSuccess={setUser}/></Suspense>}
+    </div></MotionConfig>;
 }

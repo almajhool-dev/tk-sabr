@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {fetchProfile,ApiError} from '../backend/worker/provider.ts';
+const env={DATA_PROVIDER_URL:'https://provider.example/analyze',DATA_PROVIDER_KEY:'test',DATA_PROVIDER_NAME:'Fixture for tests only',DATA_PROVIDER_APPROVED:'true'};
+const profile={displayName:null,avatarUrl:null,verified:null,followers:null,following:null,likes:null,videos:null,bio:null};
+const fake=(status:number,data:unknown)=>async()=>new Response(JSON.stringify(data),{status});
+for(const [status,code] of [[404,'ACCOUNT_NOT_FOUND'],[403,'ACCESS_DENIED'],[429,'PROVIDER_RATE_LIMIT'],[500,'PROVIDER_UNAVAILABLE']] as const)test(`provider ${status}`,async()=>{await assert.rejects(fetchProfile('example',env,fake(status,{})),(e:any)=>e instanceof ApiError&&e.code===code);});
+test('missing provider fails clearly',async()=>{await assert.rejects(fetchProfile('example',{}),(e:any)=>e.code==='PROVIDER_NOT_CONFIGURED');});
+test('private account requires explicit source flag',async()=>{await assert.rejects(fetchProfile('example',env,fake(200,{username:'example',private:true,profile,videos:null})),(e:any)=>e.code==='PRIVATE_ACCOUNT');});
+test('zero videos and missing statistics remain distinct',async()=>{const result=await fetchProfile('example',env,fake(200,{username:'example',private:false,profile:{...profile,videos:0},videos:[]}));assert.equal(result.profile.followers,null);assert.equal(result.profile.videos,0);assert.deepEqual(result.videos,[]);});
+test('mismatched account is never returned',async()=>{await assert.rejects(fetchProfile('example',env,fake(200,{username:'other',private:false,profile,videos:null})),(e:any)=>e.code==='PROVIDER_MISMATCH');});
+test('timeout is distinct from provider failure',async()=>{await assert.rejects(fetchProfile('example',env,async()=>{throw new DOMException('timeout','TimeoutError');}),(e:any)=>e.code==='PROVIDER_TIMEOUT');});
+test('invalid stats and insecure avatar are rejected',async()=>{for(const p of [{...profile,followers:-1},{...profile,avatarUrl:'javascript:alert(1)'}])await assert.rejects(fetchProfile('example',env,fake(200,{username:'example',private:false,profile:p,videos:null})),(e:any)=>e.code==='PROVIDER_RESPONSE');});
