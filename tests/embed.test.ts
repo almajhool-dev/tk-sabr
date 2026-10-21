@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {fetchOfficialEmbed} from '../backend/worker/embed.ts';
+const good={author_name:'Real source name',author_url:'https://www.tiktok.com/@example',provider_name:'TikTok',type:'rich'};
+test('official preview preserves unknown statistics and original avatar absence',async()=>{const r=await fetchOfficialEmbed('example',async()=>Response.json(good));assert.equal(r.displayName,'Real source name');assert.equal(r.followers,null);assert.equal(r.avatarUrl,null);assert.equal(r.videos,null);});
+test('official metadata cannot substitute another creator',async()=>{await assert.rejects(fetchOfficialEmbed('example',async()=>Response.json({...good,author_url:'https://www.tiktok.com/@other'})),(e:any)=>e.code==='TIKTOK_MISMATCH');});
+test('unavailable embed does not prove a private or deleted account',async()=>{await assert.rejects(fetchOfficialEmbed('example',async()=>new Response('{}',{status:404})),(e:any)=>e.code==='EMBED_UNAVAILABLE');});

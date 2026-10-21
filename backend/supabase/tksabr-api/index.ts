@@ -1,0 +1,10 @@
+import {createClient} from '@supabase/supabase-js';
+import {createSupabaseHandler} from './api.ts';
+const url=Deno.env.get('SUPABASE_URL')!;
+const secretKeys=JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS')||'{}');
+const publicKeys=JSON.parse(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS')||'{}');
+const secret=secretKeys.default||Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const anonKey=publicKeys.default||Deno.env.get('SUPABASE_ANON_KEY')!;
+if(!url||!secret||!anonKey)throw new Error('Backend credentials unavailable');
+const client=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
+Deno.serve(createSupabaseHandler(client,{url,anonKey,salt:Deno.env.get('RATE_LIMIT_SALT')||secret,origin:'https://almajhool-dev.github.io',DATA_PROVIDER_URL:Deno.env.get('DATA_PROVIDER_URL'),DATA_PROVIDER_KEY:Deno.env.get('DATA_PROVIDER_KEY'),DATA_PROVIDER_NAME:Deno.env.get('DATA_PROVIDER_NAME'),DATA_PROVIDER_APPROVED:Deno.env.get('DATA_PROVIDER_APPROVED'),GEMINI_API_KEY:Deno.env.get('GEMINI_API_KEY'),GEMINI_MODEL:Deno.env.get('GEMINI_MODEL')}));

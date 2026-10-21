@@ -5,6 +5,6 @@ export default defineConfig(({command})=>({
  base:process.env.VITE_BASE_PATH||'/',
  plugins:[react(),tailwindcss(),{name:'production-security-policy',transformIndexHtml(){
    if(command!=='build')return [];
-   return [{tag:'meta',attrs:{'http-equiv':'Content-Security-Policy',content:"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"},injectTo:'head-prepend'}];
+   return [{tag:'meta',attrs:{'http-equiv':'Content-Security-Policy',content:"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"},injectTo:'head-prepend'},{tag:'script',attrs:{src:(process.env.VITE_BASE_PATH||'/')+'config.js'},injectTo:'head'}];
  }}],build:{sourcemap:false},server:{host:'0.0.0.0'},
 }));

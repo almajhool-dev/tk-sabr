@@ -95,7 +95,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
         {/* Google Sign-in button */}
         <button
           onClick={handleGoogleSignIn}
-          disabled={isLoading || !firebaseConfigured}
+          disabled={isLoading || !firebaseConfigured || googleStatus === 'disabled'}
           className="w-full h-12 rounded-xl bg-gray-900 hover:bg-gray-850 border border-gray-800 hover:border-gray-700 text-white font-medium text-xs flex items-center justify-center gap-3 transition-all cursor-pointer shadow-md mb-4"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
