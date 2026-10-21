@@ -2,7 +2,7 @@ const {chromium,devices}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 (async()=>{
- const browser=await chromium.launch({headless:true});
+ const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.CHROMIUM_EXECUTABLE_PATH,args:['--no-sandbox','--disable-dev-shm-usage']}: {})});
  const errors=[];let scans=0;let offlineTest=false;
  const page=await browser.newPage({viewport:{width:1365,height:1000},reducedMotion:'reduce'});
  page.on('pageerror',e=>errors.push(e.message));

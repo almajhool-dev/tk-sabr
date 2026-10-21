@@ -78,11 +78,11 @@ export function createApi(fetcher:typeof fetch=fetch) {
     }
     if(path==='/api/reports/generate'&&req.method==='POST'){
       await limit(req,env,'report',3);
-      const value=z.object({scanId:z.string().uuid()}).strict().safeParse(await body(req));
+      const value=z.object({scanId:z.string().uuid(),language:z.enum(['ar','en']).optional()}).strict().safeParse(await body(req));
       if(!value.success)throw new ApiError(400,'INVALID_SCAN','معرف الفحص غير صالح.');
       const scan=await env.DB.prepare('SELECT payload FROM scans WHERE id=? AND expires_at>?').bind(value.data.scanId,Date.now()).first<{payload:string}>();
       if(!scan)throw new ApiError(410,'SCAN_EXPIRED','انتهت صلاحية الفحص؛ افحص الحساب مرة ثانية.');
-      return json(await createReport(JSON.parse(scan.payload),env,fetcher));
+      return json(await createReport(JSON.parse(scan.payload),env,fetcher,value.data.language));
     }
     if(path==='/api/history'||path.startsWith('/api/history/')){
       const user=await identity(req,env);await limit(req,env,'history',20);
